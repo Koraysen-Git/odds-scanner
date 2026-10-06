@@ -1,0 +1,44 @@
+name: scan
+
+on:
+  schedule:
+    # 30 dakikada bir. GitHub zamanlanmis isleri yogunlukta 5-15 dk geciktirebilir.
+    - cron: '*/30 * * * *'
+    # Ayda bir canli tutma: GitHub, 60 gun commit almayan public repoda
+    # zamanlanmis workflow'lari kendiliginden kapatir.
+    - cron: '17 4 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    if: github.event.schedule != '17 4 1 * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Oran taramasi
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          ODDS_INGEST_KEY: ${{ secrets.ODDS_INGEST_KEY }}
+        run: node scan.mjs
+
+  keepalive:
+    if: github.event.schedule == '17 4 1 * *'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          date -u +%FT%TZ > .keepalive
+          git config user.name "odds-scanner"
+          git config user.email "actions@users.noreply.github.com"
+          git add .keepalive && git commit -m "keepalive" && git push
